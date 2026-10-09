@@ -4,6 +4,7 @@ import sys
 
 from .config import ConfigError, resolve_settings
 from .shell import ShellCommandError, ShellEmulator
+from .vfs import VFSLoadError, VirtualFileSystem
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,7 +19,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  vfs_path       = {settings.vfs_path!r}")
     print(f"  startup_script = {settings.startup_script!r}")
 
-    shell = ShellEmulator()
+    try:
+        vfs = (
+            VirtualFileSystem.from_zip(settings.vfs_path)
+            if settings.vfs_path
+            else VirtualFileSystem.empty()
+        )
+    except VFSLoadError as exc:
+        print(f"VFS error: {exc}", file=sys.stderr)
+        return 3
+
+    shell = ShellEmulator(vfs)
 
     if settings.startup_script:
         try:

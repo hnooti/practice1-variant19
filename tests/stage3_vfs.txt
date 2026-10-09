@@ -1,0 +1,6 @@
+ls
+cd /home/student/docs
+ls
+cd /level1/level2/level3
+ls
+exit

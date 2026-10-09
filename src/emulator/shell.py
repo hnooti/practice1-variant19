@@ -7,6 +7,7 @@ import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from .vfs import VirtualFileSystem, VFSError, VFSLoadError
 
 
 class ShellCommandError(Exception):
@@ -20,7 +21,8 @@ class ShellResult:
 
 class ShellEmulator:
 
-    def __init__(self):
+    def __init__(self, vfs: VirtualFileSystem | None = None):
+        self.vfs = vfs if vfs is not None else VirtualFileSystem.empty()
         self.cwd = "/"
         self.started_at = time.monotonic()
         self.username = getpass.getuser() or "user"
@@ -51,7 +53,10 @@ class ShellEmulator:
         handler = handlers.get(command)
         if handler is None:
             raise ShellCommandError(f"{command}: неизвестная команда")
-        return handler(args)
+        try:
+            return handler(args)
+        except VFSError as exc:
+            raise ShellCommandError(str(exc)) from exc
 
     @staticmethod
     def _require_arg_count(
