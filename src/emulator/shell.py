@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import calendar
 import getpass
 import platform
@@ -7,11 +8,8 @@ import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from .vfs import VirtualFileSystem, VFSError, VFSLoadError
 
-FIRST_MONTH = 1
-LAST_MONTH = 12
-MONTH_YEAR_ARGUMENT_COUNT = 2
+from .vfs import VirtualFileSystem, VFSError, VFSLoadError
 
 
 class ShellCommandError(Exception):
@@ -24,7 +22,6 @@ class ShellResult:
 
 
 class ShellEmulator:
-
     def __init__(self, vfs: VirtualFileSystem | None = None):
         self.vfs = vfs if vfs is not None else VirtualFileSystem.empty()
         self.cwd = "/"
@@ -48,6 +45,7 @@ class ShellEmulator:
         tokens = self.parse(line)
         if not tokens:
             return ShellResult()
+
         command, *args = tokens
         handlers = {
             "ls": self.cmd_ls,
@@ -55,11 +53,16 @@ class ShellEmulator:
             "uname": self.cmd_uname,
             "cal": self.cmd_cal,
             "uptime": self.cmd_uptime,
+            "rmdir": self.cmd_rmdir,
+            "touch": self.cmd_touch,
+            "vfs-load": self.cmd_vfs_load,
             "exit": self.cmd_exit,
         }
+
         handler = handlers.get(command)
         if handler is None:
             raise ShellCommandError(f"{command}: неизвестная команда")
+
         try:
             return handler(args)
         except VFSError as exc:
@@ -67,11 +70,10 @@ class ShellEmulator:
 
     @staticmethod
     def _require_arg_count(
-        command: str, args: list[str], minimum: int, maximum: int | None = None
+        command: str, args: list[str], minimum: int,
+        maximum: int | None = None,
     ):
-        if len(args) < minimum or (
-            maximum is not None and len(args) > maximum
-        ):
+        if len(args) < minimum or (maximum is not None and len(args) > maximum):
             if minimum == maximum:
                 raise ShellCommandError(
                     f"{command}: ожидается аргументов: {minimum}"
@@ -93,7 +95,7 @@ class ShellEmulator:
         target = self.vfs.resolve(self.cwd, args[0] if args else "/")
         if not self.vfs.is_dir(target):
             raise ShellCommandError(
-                f"cd: нет такого каталога: {(args[0] if args else target)}"
+                f"cd: нет такого каталога: {args[0] if args else target}"
             )
         self.cwd = target
         return ShellResult()
@@ -104,7 +106,7 @@ class ShellEmulator:
         if not args:
             print(info.system or "EmuOS")
         elif args[0] == "-a":
-            print(" ".join((str(x) for x in info)))
+            print(" ".join(str(x) for x in info))
         else:
             raise ShellCommandError("uname: поддерживается только опция -a")
         return ShellResult()
@@ -121,7 +123,7 @@ class ShellEmulator:
                     "cal: год должен быть целым числом"
                 ) from exc
             print(calendar.calendar(year), end="")
-        elif len(args) == MONTH_YEAR_ARGUMENT_COUNT:
+        elif len(args) == 2:
             try:
                 month = int(args[0])
                 year = int(args[1])
@@ -129,7 +131,7 @@ class ShellEmulator:
                 raise ShellCommandError(
                     "cal: месяц и год должны быть целыми числами"
                 ) from exc
-            if not FIRST_MONTH <= month <= LAST_MONTH:
+            if month < 1 or month > 12:
                 raise ShellCommandError("cal: месяц должен быть от 1 до 12")
             print(calendar.month(year, month), end="")
         else:
@@ -148,6 +150,30 @@ class ShellEmulator:
         print(f"up {prefix}{hours:02d}:{minutes:02d}:{secs:02d}")
         return ShellResult()
 
+    def cmd_rmdir(self, args: list[str]) -> ShellResult:
+        self._require_arg_count("rmdir", args, 1, 1)
+        target = self.vfs.resolve(self.cwd, args[0])
+        if self.cwd == target or self.cwd.startswith(target.rstrip("/") + "/"):
+            raise ShellCommandError("rmdir: каталог используется оболочкой")
+        self.vfs.remove_dir(target)
+        return ShellResult()
+
+    def cmd_touch(self, args: list[str]) -> ShellResult:
+        self._require_arg_count("touch", args, 1, 1)
+        target = self.vfs.resolve(self.cwd, args[0])
+        self.vfs.make_file(target)
+        return ShellResult()
+
+    def cmd_vfs_load(self, args: list[str]) -> ShellResult:
+        self._require_arg_count("vfs-load", args, 1, 1)
+        try:
+            self.vfs.load_zip(args[0])
+        except VFSLoadError as exc:
+            raise ShellCommandError(f"vfs-load: {exc}") from exc
+        self.cwd = "/"
+        print(f"VFS загружена: {args[0]}")
+        return ShellResult()
+
     def cmd_exit(self, args: list[str]) -> ShellResult:
         self._require_arg_count("exit", args, 0, 0)
         return ShellResult(should_exit=True)
@@ -163,16 +189,19 @@ class ShellEmulator:
             raise ShellCommandError(
                 f"ошибка чтения стартового скрипта: {exc}"
             ) from exc
+
         for raw in lines:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
+
             print(self.prompt() + line)
             try:
                 result = self.execute(line)
             except ShellCommandError as exc:
                 print(f"error: {exc}")
                 continue
+
             if result.should_exit:
                 return True
         return False
@@ -184,10 +213,12 @@ class ShellEmulator:
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
+
             try:
                 result = self.execute(line)
             except ShellCommandError as exc:
                 print(f"error: {exc}")
                 continue
+
             if result.should_exit:
                 break
