@@ -80,6 +80,31 @@ class ShellEmulator:
         self._require_arg_count("exit", args, 0, 0)
         return ShellResult(should_exit=True)
 
+    def run_script(self, script_path: str) -> bool:
+        try:
+            lines = Path(script_path).read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError as exc:
+            raise ShellCommandError(
+                f"стартовый скрипт не найден: {script_path}"
+            ) from exc
+        except (OSError, UnicodeError) as exc:
+            raise ShellCommandError(
+                f"ошибка чтения стартового скрипта: {exc}"
+            ) from exc
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            print(self.prompt() + line)
+            try:
+                result = self.execute(line)
+            except ShellCommandError as exc:
+                print(f"error: {exc}")
+                continue
+            if result.should_exit:
+                return True
+        return False
+
     def repl(self) -> None:
         while True:
             try:

@@ -1,0 +1,4 @@
+{
+  "vfs_path": null,
+  "startup_script": "tests/stage1_repl.txt"
+}
