@@ -1,0 +1,7 @@
+ls
+cd "home"
+ls
+cd "student"
+ls
+unknown-command
+exit

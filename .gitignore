@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/
+vfs/*.zip
+*.pdf
+.DS_Store
