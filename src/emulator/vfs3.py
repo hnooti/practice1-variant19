@@ -70,33 +70,10 @@ class VirtualFileSystem:
             self.directories.add(current)
 
     def load_zip(self, archive_path: str) -> None:
-        new_files: dict[str, bytes] = {}
-        new_dirs: set[str] = {"/"}
+        """Load a ZIP atomically, keeping the old VFS on failure."""
         try:
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                bad = zf.testzip()
-                if bad is not None:
-                    raise VFSLoadError(f"поврежден файл внутри ZIP: {bad}")
-                for info in zf.infolist():
-                    normalized = self._norm(info.filename)
-                    if normalized == "/":
-                        continue
-                    if info.is_dir():
-                        new_dirs.add(normalized)
-                        for parent in PurePosixPath(normalized).parents:
-                            new_dirs.add(str(parent))
-                    else:
-                        data = zf.read(info.filename)
-                        new_files[normalized] = data
-                        p = PurePosixPath(normalized)
-                        current = "/"
-                        for part in p.parts[:-1]:
-                            if part == "/":
-                                continue
-                            current = self._norm(
-                                current.rstrip("/") + "/" + part
-                            )
-                            new_dirs.add(current)
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                new_files, new_dirs = self._read_archive(archive)
         except FileNotFoundError as exc:
             raise VFSLoadError(f"файл VFS не найден: {archive_path}") from exc
         except zipfile.BadZipFile as exc:
@@ -111,6 +88,27 @@ class VirtualFileSystem:
         self.files = new_files
         self.directories = new_dirs
 
+    def _read_archive(
+        self, archive: zipfile.ZipFile
+    ) -> tuple[dict[str, bytes], set[str]]:
+        """Read entries and infer directories omitted from the ZIP."""
+        bad = archive.testzip()
+        if bad is not None:
+            raise VFSLoadError(f"поврежден файл внутри ZIP: {bad}")
+        files: dict[str, bytes] = {}
+        directories = {"/"}
+        for info in archive.infolist():
+            normalized = self._norm(info.filename)
+            if normalized == "/":
+                continue
+            parents = PurePosixPath(normalized).parents
+            directories.update(str(parent) for parent in parents)
+            if info.is_dir():
+                directories.add(normalized)
+            else:
+                files[normalized] = archive.read(info.filename)
+        return files, directories
+
     def exists(self, path: str) -> bool:
         path = self._norm(path)
         return path in self.directories or path in self.files
@@ -119,28 +117,23 @@ class VirtualFileSystem:
         return self._norm(path) in self.directories
 
     def list_dir(self, path: str) -> list[str]:
+        """Return direct children, marking directory names with a slash."""
         path = self._norm(path)
         if path not in self.directories:
             raise VFSError(f"нет такого каталога: {path}")
+        names = self._child_names(self.directories, path, "/")
+        names.update(self._child_names(self.files, path, ""))
+        return sorted(names, key=lambda name: name.rstrip("/"))
 
-        prefix = "/" if path == "/" else path.rstrip("/") + "/"
+    @staticmethod
+    def _child_names(paths, parent: str, suffix: str) -> set[str]:
+        """Select entries whose immediate parent matches the given path."""
         names: set[str] = set()
-
-        for d in self.directories:
-            if d == path or not d.startswith(prefix):
-                continue
-            rest = d[len(prefix):]
-            if rest and "/" not in rest:
-                names.add(rest + "/")
-
-        for f in self.files:
-            if not f.startswith(prefix):
-                continue
-            rest = f[len(prefix):]
-            if rest and "/" not in rest:
-                names.add(rest)
-
-        return sorted(names, key=lambda x: x.rstrip("/"))
+        for path in paths:
+            entry = PurePosixPath(path)
+            if entry.name and str(entry.parent) == parent:
+                names.add(entry.name + suffix)
+        return names
 
     def make_file(self, path: str) -> None:
         path = self._norm(path)
@@ -162,8 +155,7 @@ class VirtualFileSystem:
 
         prefix = path.rstrip("/") + "/"
         has_children = any(
-            d != path and d.startswith(prefix)
-            for d in self.directories
+            d != path and d.startswith(prefix) for d in self.directories
         )
         has_files = any(f.startswith(prefix) for f in self.files)
         if has_children or has_files:

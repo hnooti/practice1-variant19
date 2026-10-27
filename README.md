@@ -32,9 +32,9 @@ practice1_variant19/
 ├── src/emulator/
 │   ├── __init__.py
 │   ├── __main__.py
-│   ├── config.py
-│   ├── shell.py
-│   └── vfs.py
+│   ├── config2.py
+│   ├── shell1.py
+│   └── vfs3.py
 ├── config/
 │   ├── default.json
 │   └── broken.json
@@ -55,7 +55,8 @@ practice1_variant19/
 │   ├── stage4_commands.txt
 │   ├── stage5_commands.txt
 │   ├── test_emulator.py
-│   └── test_edge_cases.py
+│   ├── test_edge_cases.py
+│   └── test_vfs_regression.py
 ├── run.sh
 ├── .gitignore
 └── README.md

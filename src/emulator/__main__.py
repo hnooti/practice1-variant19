@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import sys
 
-from .config import ConfigError, resolve_settings
-from .shell import ShellCommandError, ShellEmulator
-from .vfs import VFSLoadError, VirtualFileSystem
+from .config2 import ConfigError, resolve_settings
+from .shell1 import ShellCommandError, ShellEmulator
+from .vfs3 import VFSLoadError, VirtualFileSystem
 
 
 def main(argv: list[str] | None = None) -> int:

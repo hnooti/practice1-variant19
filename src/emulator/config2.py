@@ -52,16 +52,17 @@ def _load_json(path: str) -> dict:
 
 
 def resolve_settings(argv: list[str] | None = None) -> Settings:
+    """Merge JSON settings with higher-priority CLI arguments."""
     args = build_parser().parse_args(argv)
 
     file_cfg: dict = {}
     if args.config_path:
         file_cfg = _load_json(args.config_path)
 
-    # CLI has higher priority than config file.
     vfs_path = (
         args.vfs_path
-        if args.vfs_path is not None else file_cfg.get("vfs_path")
+        if args.vfs_path is not None
+        else file_cfg.get("vfs_path")
     )
     startup_script = (
         args.startup_script

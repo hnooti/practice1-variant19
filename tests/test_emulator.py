@@ -3,8 +3,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from emulator.shell import ShellCommandError, ShellEmulator
-from emulator.vfs import VirtualFileSystem
+from emulator.shell1 import ShellCommandError, ShellEmulator
+from emulator.vfs3 import VirtualFileSystem
 
 
 class EmulatorTests(unittest.TestCase):

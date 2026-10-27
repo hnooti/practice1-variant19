@@ -9,7 +9,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .vfs import VirtualFileSystem, VFSError, VFSLoadError
+from .vfs3 import VirtualFileSystem, VFSError, VFSLoadError
+
+FIRST_MONTH = 1
+LAST_MONTH = 12
+MONTH_YEAR_ARGUMENT_COUNT = 2
 
 
 class ShellCommandError(Exception):
@@ -70,10 +74,14 @@ class ShellEmulator:
 
     @staticmethod
     def _require_arg_count(
-        command: str, args: list[str], minimum: int,
+        command: str,
+        args: list[str],
+        minimum: int,
         maximum: int | None = None,
     ):
-        if len(args) < minimum or (maximum is not None and len(args) > maximum):
+        if len(args) < minimum or (
+            maximum is not None and len(args) > maximum
+        ):
             if minimum == maximum:
                 raise ShellCommandError(
                     f"{command}: ожидается аргументов: {minimum}"
@@ -123,7 +131,7 @@ class ShellEmulator:
                     "cal: год должен быть целым числом"
                 ) from exc
             print(calendar.calendar(year), end="")
-        elif len(args) == 2:
+        elif len(args) == MONTH_YEAR_ARGUMENT_COUNT:
             try:
                 month = int(args[0])
                 year = int(args[1])
@@ -131,7 +139,7 @@ class ShellEmulator:
                 raise ShellCommandError(
                     "cal: месяц и год должны быть целыми числами"
                 ) from exc
-            if month < 1 or month > 12:
+            if not FIRST_MONTH <= month <= LAST_MONTH:
                 raise ShellCommandError("cal: месяц должен быть от 1 до 12")
             print(calendar.month(year, month), end="")
         else:
